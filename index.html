@@ -754,23 +754,13 @@
                 <div class="settings-panel">
                     <h3>⚙️ 压缩设置</h3>
 
-                    <div class="setting-group">
-                        <label>宽高比例</label>
-                        <div class="ratio-buttons">
-                            <button class="ratio-btn active" data-ratio="1:1">1:1 正方形</button>
-                            <button class="ratio-btn" data-ratio="4:3">4:3 标准</button>
-                        </div>
-                    </div>
-
-
-
                     <div class="info-box">
                         <strong>📋 压缩规则：</strong><br>
-                        • 长边 ≤ 1080px<br>
-                        • 原文件 < 2MB：保持原大小<br>
-                        • 原文件 ≥ 2MB：压缩到 1.5-1.95MB<br>
+                        • 长边 = 1600px<br>
+                        • 短边按比例自动缩放<br>
+                        • 不裁切，保留完整内容<br>
                         • 强制转换为 JPG<br>
-                        • 自动裁剪至选定比例
+                        • 文件大小 1-1.5MB
                     </div>
                 </div>
             </div>
@@ -816,10 +806,7 @@
     <script>
         // 状态管理
         const state = {
-            files: [],
-            settings: {
-                ratio: '1:1'
-            }
+            files: []
         };
 
         // DOM 元素
@@ -853,15 +840,6 @@
             // 文件输入
             fileInput.addEventListener('change', (e) => {
                 handleFiles(e.target.files);
-            });
-
-            // 设置面板
-            document.querySelectorAll('[data-ratio]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    document.querySelectorAll('[data-ratio]').forEach(b => b.classList.remove('active'));
-                    e.target.classList.add('active');
-                    state.settings.ratio = e.target.dataset.ratio;
-                });
             });
 
             // 批量操作
@@ -997,54 +975,33 @@
                         const canvas = document.createElement('canvas');
                         const ctx = canvas.getContext('2d');
 
-                        // 计算新尺寸
-                        let { width, height } = img;
-                        const [ratioW, ratioH] = state.settings.ratio === '1:1' ? [1, 1] : [4, 3];
-                        const maxLongSide = 1080;
+                        // 计算新尺寸 - 长边 = 1600px，短边按比例缩放
 
-                        // 缩放到长边 ≤ 1080px
-                        if (width > height) {
-                            if (width > maxLongSide) {
-                                height = Math.round(height * (maxLongSide / width));
-                                width = maxLongSide;
-                            }
+                        let newWidth, newHeight;
+                        if (width >= height) {
+                            // 宽度是长边
+                            newWidth = targetLongSide;
+                            newHeight = Math.round(height * (targetLongSide / width));
                         } else {
-                            if (height > maxLongSide) {
-                                width = Math.round(width * (maxLongSide / height));
-                                height = maxLongSide;
-                            }
+                            // 高度是长边
+                            newHeight = targetLongSide;
+                            newWidth = Math.round(width * (targetLongSide / height));
                         }
 
-                        // 裁剪到指定比例
-                        const targetRatio = ratioW / ratioH;
-                        const currentRatio = width / height;
+                        canvas.width = newWidth;
+                        canvas.height = newHeight;
 
-                        let cropWidth = width;
-                        let cropHeight = height;
-                        let cropX = 0;
-                        let cropY = 0;
-
-                        if (currentRatio > targetRatio) {
-                            cropWidth = Math.round(height * targetRatio);
-                            cropX = Math.round((width - cropWidth) / 2);
-                        } else {
-                            cropHeight = Math.round(width / targetRatio);
-                            cropY = Math.round((height - cropHeight) / 2);
-                        }
-
-                        canvas.width = cropWidth;
-                        canvas.height = cropHeight;
-
-                        ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+                        ctx.drawImage(img, 0, 0, width, height, 0, 0, newWidth, newHeight);
 
                         // 压缩策略
-                        const THRESHOLD = 2 * 1024 * 1024; // 2MB 阈值
-                        const TARGET_MIN = 1.5 * 1024 * 1024; // 目标最小 1.5MB
-                        const TARGET_MAX = 1.95 * 1024 * 1024; // 目标最大 1.95MB
+                        const THRESHOLD = 1 * 1024 * 1024; // 1MB 阈值
+                        const TARGET_MIN = 1 * 1024 * 1024; // 目标最小 1MB
+                        const TARGET_MAX = 1.5 * 1024 * 1024; // 目标最大 1.5MB
 
                         console.log(`📸 开始压缩: 原始大小 ${formatSize(file.size)}`);
+                        console.log(`📐 缩放后尺寸: ${newWidth}x${newHeight}`);
 
-                        // 如果原文件 < 2MB，不压缩
+                        // 如果原文件 < 1MB，不压缩
                         if (file.size < THRESHOLD) {
                             canvas.toBlob(
                                 (blob) => {
@@ -1057,7 +1014,7 @@
                             return;
                         }
 
-                        // 原文件 >= 2MB，需要压缩到 1.5-1.95MB
+                        // 原文件 >= 1MB，需要压缩到 1-1.5MB
                         console.log(`📊 目标范围: ${formatSize(TARGET_MIN)} - ${formatSize(TARGET_MAX)}`);
 
                         // 先用最高质量试试
@@ -1072,15 +1029,15 @@
                                     return;
                                 }
 
-                                // 如果最高质量 < 1.5MB，说明图片本身就很小，保持最高质量
+                                // 如果最高质量 < 1MB，保持最高质量
                                 if (firstBlob.size < TARGET_MIN) {
-                                    console.log(`⚠️ 最高质量已 < 1.5MB (${formatSize(firstBlob.size)})，保持最高质量`);
+                                    console.log(`⚠️ 最高质量已 < 1MB (${formatSize(firstBlob.size)})，保持最高质量`);
                                     resolve(firstBlob);
                                     return;
                                 }
 
-                                // 最高质量 > 1.95MB，需要降低质量
-                                console.log(`⚠️ 最高质量 > 1.95MB，开始降低质量`);
+                                // 最高质量 > 1.5MB，需要降低质量
+                                console.log(`⚠️ 最高质量 > 1.5MB，开始降低质量`);
 
                                 // 从高质量开始，逐步降低
                                 const qualityLevels = [0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30, 0.25, 0.20];
