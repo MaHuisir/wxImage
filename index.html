@@ -1045,64 +1045,68 @@
                         // 如果原文件 < 2MB，不压缩
                         if (file.size < THRESHOLD) {
                             canvas.toBlob(
-                                (blob) => resolve(blob),
+                                (blob) => {
+                                    console.log(`小文件保持原大小: ${formatSize(file.size)} → ${formatSize(blob.size)}`);
+                                    resolve(blob);
+                                },
                                 'image/jpeg',
                                 0.95
                             );
                             return;
                         }
 
-                        // 二分查找最优质量
-                        let lowQuality = 0.1;
-                        let highQuality = 0.95;
-                        let bestBlob = null;
-                        let iterations = 0;
-                        const maxIterations = 20;
+                        // 原文件 >= 2MB，需要压缩到 1.8-1.95MB
+                        // 使用线性估算：质量与文件大小大致成正比
+                        const targetSize = 1.875 * 1024 * 1024; // 目标中点 1.875MB
+                        const estimatedQuality = (targetSize / file.size) * 0.9; // 保守估计
+                        const quality = Math.max(0.2, Math.min(0.9, estimatedQuality));
 
-                        const binarySearch = () => {
-                            iterations++;
-                            if (iterations > maxIterations) {
-                                resolve(bestBlob || blob);
-                                return;
-                            }
+                        console.log(`大文件压缩: ${formatSize(file.size)} → 目标 ${formatSize(targetSize)}, 质量: ${(quality * 100).toFixed(1)}%`);
 
-                            const midQuality = (lowQuality + highQuality) / 2;
+                        canvas.toBlob(
+                            (blob) => {
+                                console.log(`压缩结果: ${formatSize(blob.size)}`);
+                                
+                                // 如果结果在目标范围内，直接返回
+                                if (blob.size >= TARGET_MIN && blob.size <= TARGET_MAX) {
+                                    console.log(`✅ 完美命中目标范围`);
+                                    resolve(blob);
+                                    return;
+                                }
 
-                            canvas.toBlob(
-                                (blob) => {
-                                    bestBlob = blob;
+                                // 如果太大，再降低质量重试一次
+                                if (blob.size > TARGET_MAX) {
+                                    console.log(`⚠️ 仍然太大，再次降低质量`);
+                                    const newQuality = quality * 0.85;
+                                    canvas.toBlob(
+                                        (blob2) => {
+                                            console.log(`第二次压缩结果: ${formatSize(blob2.size)}`);
+                                            resolve(blob2);
+                                        },
+                                        'image/jpeg',
+                                        newQuality
+                                    );
+                                    return;
+                                }
 
-                                    // 检查是否在目标范围内
-                                    if (blob.size >= TARGET_MIN && blob.size <= TARGET_MAX) {
-                                        // 完美！在目标范围内
-                                        resolve(blob);
-                                        return;
-                                    }
-
-                                    if (blob.size > TARGET_MAX) {
-                                        // 太大，降低质量
-                                        highQuality = midQuality;
-                                    } else {
-                                        // 太小，提高质量
-                                        lowQuality = midQuality;
-                                    }
-
-                                    // 检查是否收敛
-                                    if (highQuality - lowQuality < 0.001) {
-                                        // 已收敛，返回最接近的结果
-                                        resolve(blob);
-                                        return;
-                                    }
-
-                                    // 继续二分查找
-                                    binarySearch();
-                                },
-                                'image/jpeg',
-                                midQuality
-                            );
-                        };
-
-                        binarySearch();
+                                // 如果太小，提高质量重试一次
+                                if (blob.size < TARGET_MIN) {
+                                    console.log(`⚠️ 太小了，提高质量`);
+                                    const newQuality = Math.min(0.95, quality * 1.15);
+                                    canvas.toBlob(
+                                        (blob2) => {
+                                            console.log(`第二次压缩结果: ${formatSize(blob2.size)}`);
+                                            resolve(blob2);
+                                        },
+                                        'image/jpeg',
+                                        newQuality
+                                    );
+                                    return;
+                                }
+                            },
+                            'image/jpeg',
+                            quality
+                        );
                     };
                     img.onerror = () => reject(new Error('图片加载失败'));
                     img.src = e.target.result;
