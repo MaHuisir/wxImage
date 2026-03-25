@@ -1060,70 +1060,96 @@
                         // 原文件 >= 2MB，需要压缩到 1.5-1.95MB
                         console.log(`📊 目标范围: ${formatSize(TARGET_MIN)} - ${formatSize(TARGET_MAX)}`);
 
-                        // 从高质量开始，逐步降低
-                        const qualityLevels = [0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30, 0.25, 0.20];
-                        let currentIndex = 0;
+                        // 先用最高质量试试
+                        canvas.toBlob(
+                            (firstBlob) => {
+                                console.log(`🔍 最高质量 95% 结果: ${formatSize(firstBlob.size)}`);
 
-                        const tryNextQuality = () => {
-                            if (currentIndex >= qualityLevels.length) {
-                                // 已尝试所有质量，返回最后一个
-                                console.log(`⚠️ 已尝试所有质量等级，返回最后结果`);
-                                canvas.toBlob(
-                                    (blob) => {
-                                        console.log(`❌ 最终结果: ${formatSize(blob.size)}`);
-                                        resolve(blob);
-                                    },
-                                    'image/jpeg',
-                                    qualityLevels[qualityLevels.length - 1]
-                                );
-                                return;
-                            }
+                                // 如果最高质量已经在目标范围内，直接返回
+                                if (firstBlob.size >= TARGET_MIN && firstBlob.size <= TARGET_MAX) {
+                                    console.log(`✅ 最高质量已在目标范围内: ${formatSize(firstBlob.size)}`);
+                                    resolve(firstBlob);
+                                    return;
+                                }
 
-                            const quality = qualityLevels[currentIndex];
-                            console.log(`🔄 尝试质量: ${(quality * 100).toFixed(0)}%`);
+                                // 如果最高质量 < 1.5MB，说明图片本身就很小，保持最高质量
+                                if (firstBlob.size < TARGET_MIN) {
+                                    console.log(`⚠️ 最高质量已 < 1.5MB (${formatSize(firstBlob.size)})，保持最高质量`);
+                                    resolve(firstBlob);
+                                    return;
+                                }
 
-                            canvas.toBlob(
-                                (blob) => {
-                                    const blobSize = blob.size;
-                                    console.log(`   结果: ${formatSize(blobSize)}`);
+                                // 最高质量 > 1.95MB，需要降低质量
+                                console.log(`⚠️ 最高质量 > 1.95MB，开始降低质量`);
 
-                                    // 检查是否在目标范围内
-                                    if (blobSize >= TARGET_MIN && blobSize <= TARGET_MAX) {
-                                        console.log(`✅ 完美！压缩到目标范围: ${formatSize(blobSize)}`);
-                                        resolve(blob);
+                                // 从高质量开始，逐步降低
+                                const qualityLevels = [0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30, 0.25, 0.20];
+                                let currentIndex = 0;
+
+                                const tryNextQuality = () => {
+                                    if (currentIndex >= qualityLevels.length) {
+                                        // 已尝试所有质量，返回最后一个
+                                        console.log(`⚠️ 已尝试所有质量等级，返回最后结果`);
+                                        canvas.toBlob(
+                                            (blob) => {
+                                                console.log(`❌ 最终结果: ${formatSize(blob.size)}`);
+                                                resolve(blob);
+                                            },
+                                            'image/jpeg',
+                                            qualityLevels[qualityLevels.length - 1]
+                                        );
                                         return;
                                     }
 
-                                    // 如果太大，继续降低质量
-                                    if (blobSize > TARGET_MAX) {
-                                        console.log(`   太大，继续降低质量`);
-                                        currentIndex++;
-                                        tryNextQuality();
-                                    } else {
-                                        // 太小了，说明上一个质量是最优的
-                                        if (currentIndex > 0) {
-                                            console.log(`   太小了，使用上一个质量`);
-                                            const prevQuality = qualityLevels[currentIndex - 1];
-                                            canvas.toBlob(
-                                                (prevBlob) => {
-                                                    console.log(`✅ 使用质量 ${(prevQuality * 100).toFixed(0)}%: ${formatSize(prevBlob.size)}`);
-                                                    resolve(prevBlob);
-                                                },
-                                                'image/jpeg',
-                                                prevQuality
-                                            );
-                                        } else {
-                                            console.log(`   太小了，但已是最高质量`);
-                                            resolve(blob);
-                                        }
-                                    }
-                                },
-                                'image/jpeg',
-                                quality
-                            );
-                        };
+                                    const quality = qualityLevels[currentIndex];
+                                    console.log(`🔄 尝试质量: ${(quality * 100).toFixed(0)}%`);
 
-                        tryNextQuality();
+                                    canvas.toBlob(
+                                        (blob) => {
+                                            const blobSize = blob.size;
+                                            console.log(`   结果: ${formatSize(blobSize)}`);
+
+                                            // 检查是否在目标范围内
+                                            if (blobSize >= TARGET_MIN && blobSize <= TARGET_MAX) {
+                                                console.log(`✅ 完美！压缩到目标范围: ${formatSize(blobSize)}`);
+                                                resolve(blob);
+                                                return;
+                                            }
+
+                                            // 如果太大，继续降低质量
+                                            if (blobSize > TARGET_MAX) {
+                                                console.log(`   太大，继续降低质量`);
+                                                currentIndex++;
+                                                tryNextQuality();
+                                            } else {
+                                                // 太小了，说明上一个质量是最优的
+                                                if (currentIndex > 0) {
+                                                    console.log(`   太小了，使用上一个质量`);
+                                                    const prevQuality = qualityLevels[currentIndex - 1];
+                                                    canvas.toBlob(
+                                                        (prevBlob) => {
+                                                            console.log(`✅ 使用质量 ${(prevQuality * 100).toFixed(0)}%: ${formatSize(prevBlob.size)}`);
+                                                            resolve(prevBlob);
+                                                        },
+                                                        'image/jpeg',
+                                                        prevQuality
+                                                    );
+                                                } else {
+                                                    console.log(`   太小了，但已是最高质量`);
+                                                    resolve(blob);
+                                                }
+                                            }
+                                        },
+                                        'image/jpeg',
+                                        quality
+                                    );
+                                };
+
+                                tryNextQuality();
+                            },
+                            'image/jpeg',
+                            0.95
+                        );
                     };
                     img.onerror = () => reject(new Error('图片加载失败'));
                     img.src = e.target.result;
