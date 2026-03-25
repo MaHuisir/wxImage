@@ -768,7 +768,7 @@
                         <strong>📋 压缩规则：</strong><br>
                         • 长边 ≤ 1080px<br>
                         • 原文件 < 2MB：保持原大小<br>
-                        • 原文件 ≥ 2MB：压缩到 1.8-1.95MB<br>
+                        • 原文件 ≥ 2MB：压缩到 1.5-1.95MB<br>
                         • 强制转换为 JPG<br>
                         • 自动裁剪至选定比例
                     </div>
@@ -1039,14 +1039,16 @@
 
                         // 压缩策略
                         const THRESHOLD = 2 * 1024 * 1024; // 2MB 阈值
-                        const TARGET_MIN = 1.8 * 1024 * 1024; // 目标最小 1.8MB
+                        const TARGET_MIN = 1.5 * 1024 * 1024; // 目标最小 1.5MB
                         const TARGET_MAX = 1.95 * 1024 * 1024; // 目标最大 1.95MB
+
+                        console.log(`📸 开始压缩: 原始大小 ${formatSize(file.size)}`);
 
                         // 如果原文件 < 2MB，不压缩
                         if (file.size < THRESHOLD) {
                             canvas.toBlob(
                                 (blob) => {
-                                    console.log(`小文件保持原大小: ${formatSize(file.size)} → ${formatSize(blob.size)}`);
+                                    console.log(`✅ 小文件保持原大小: ${formatSize(file.size)} → ${formatSize(blob.size)}`);
                                     resolve(blob);
                                 },
                                 'image/jpeg',
@@ -1055,58 +1057,63 @@
                             return;
                         }
 
-                        // 原文件 >= 2MB，需要压缩到 1.8-1.95MB
-                        // 使用线性估算：质量与文件大小大致成正比
-                        const targetSize = 1.875 * 1024 * 1024; // 目标中点 1.875MB
-                        const estimatedQuality = (targetSize / file.size) * 0.9; // 保守估计
-                        const quality = Math.max(0.2, Math.min(0.9, estimatedQuality));
+                        // 原文件 >= 2MB，需要压缩到 1.5-1.95MB
+                        // 使用递归压缩，直到达到目标范围
+                        let attempts = 0;
+                        const maxAttempts = 30;
 
-                        console.log(`大文件压缩: ${formatSize(file.size)} → 目标 ${formatSize(targetSize)}, 质量: ${(quality * 100).toFixed(1)}%`);
+                        const compressWithQuality = (quality) => {
+                            attempts++;
+                            console.log(`🔄 第 ${attempts} 次尝试，质量: ${(quality * 100).toFixed(1)}%`);
 
-                        canvas.toBlob(
-                            (blob) => {
-                                console.log(`压缩结果: ${formatSize(blob.size)}`);
-                                
-                                // 如果结果在目标范围内，直接返回
-                                if (blob.size >= TARGET_MIN && blob.size <= TARGET_MAX) {
-                                    console.log(`✅ 完美命中目标范围`);
-                                    resolve(blob);
-                                    return;
-                                }
+                            canvas.toBlob(
+                                (blob) => {
+                                    const blobSize = blob.size;
+                                    console.log(`   结果: ${formatSize(blobSize)}`);
 
-                                // 如果太大，再降低质量重试一次
-                                if (blob.size > TARGET_MAX) {
-                                    console.log(`⚠️ 仍然太大，再次降低质量`);
-                                    const newQuality = quality * 0.85;
-                                    canvas.toBlob(
-                                        (blob2) => {
-                                            console.log(`第二次压缩结果: ${formatSize(blob2.size)}`);
-                                            resolve(blob2);
-                                        },
-                                        'image/jpeg',
-                                        newQuality
-                                    );
-                                    return;
-                                }
+                                    // 检查是否在目标范围内
+                                    if (blobSize >= TARGET_MIN && blobSize <= TARGET_MAX) {
+                                        console.log(`✅ 完美！压缩到目标范围: ${formatSize(blobSize)}`);
+                                        resolve(blob);
+                                        return;
+                                    }
 
-                                // 如果太小，提高质量重试一次
-                                if (blob.size < TARGET_MIN) {
-                                    console.log(`⚠️ 太小了，提高质量`);
-                                    const newQuality = Math.min(0.95, quality * 1.15);
-                                    canvas.toBlob(
-                                        (blob2) => {
-                                            console.log(`第二次压缩结果: ${formatSize(blob2.size)}`);
-                                            resolve(blob2);
-                                        },
-                                        'image/jpeg',
-                                        newQuality
-                                    );
-                                    return;
-                                }
-                            },
-                            'image/jpeg',
-                            quality
-                        );
+                                    // 如果超过最大尝试次数，返回当前结果
+                                    if (attempts >= maxAttempts) {
+                                        console.log(`⚠️ 达到最大尝试次数，返回当前结果: ${formatSize(blobSize)}`);
+                                        resolve(blob);
+                                        return;
+                                    }
+
+                                    // 根据大小调整质量
+                                    if (blobSize > TARGET_MAX) {
+                                        // 太大，降低质量
+                                        console.log(`   太大了，降低质量`);
+                                        quality -= 0.03;
+                                        if (quality < 0.1) quality = 0.1;
+                                        compressWithQuality(quality);
+                                    } else if (blobSize < TARGET_MIN) {
+                                        // 太小，提高质量
+                                        console.log(`   太小了，提高质量`);
+                                        quality += 0.03;
+                                        if (quality > 0.95) quality = 0.95;
+                                        compressWithQuality(quality);
+                                    }
+                                },
+                                'image/jpeg',
+                                quality
+                            );
+                        };
+
+                        // 初始质量估算：根据文件大小
+                        const targetSize = 1.725 * 1024 * 1024; // 目标中点 1.725MB
+                        let initialQuality = (targetSize / file.size) * 0.85;
+                        initialQuality = Math.max(0.2, Math.min(0.85, initialQuality));
+
+                        console.log(`📊 目标范围: ${formatSize(TARGET_MIN)} - ${formatSize(TARGET_MAX)}`);
+                        console.log(`🎯 初始质量估算: ${(initialQuality * 100).toFixed(1)}%`);
+
+                        compressWithQuality(initialQuality);
                     };
                     img.onerror = () => reject(new Error('图片加载失败'));
                     img.src = e.target.result;
