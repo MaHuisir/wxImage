@@ -767,7 +767,8 @@
                     <div class="info-box">
                         <strong>📋 压缩规则：</strong><br>
                         • 长边 ≤ 1080px<br>
-                        • 文件大小 ≤ 2MB（自动智能压缩）<br>
+                        • 原文件 < 2MB：保持原大小<br>
+                        • 原文件 ≥ 2MB：压缩到 1.8-1.95MB<br>
                         • 强制转换为 JPG<br>
                         • 自动裁剪至选定比例
                     </div>
@@ -1036,26 +1037,42 @@
 
                         ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
 
-                        // 智能压缩：从 90% 质量开始，逐步降低直到 ≤ 2MB
-                        const MAX_SIZE = 2 * 1024 * 1024; // 2MB
-                        let quality = 0.9;
-                        const minQuality = 0.1;
-                        const qualityStep = 0.05;
+                        // 智能压缩策略
+                        const THRESHOLD = 2 * 1024 * 1024; // 2MB 阈值
+                        const TARGET_MIN = 1.8 * 1024 * 1024; // 目标最小 1.8MB
+                        const TARGET_MAX = 1.95 * 1024 * 1024; // 目标最大 1.95MB
 
-                        const tryCompress = () => {
+                        const tryCompress = (quality) => {
                             canvas.toBlob(
                                 (blob) => {
-                                    if (blob.size <= MAX_SIZE) {
-                                        // 成功：文件 ≤ 2MB
+                                    // 如果原文件 < 2MB，不压缩大小
+                                    if (file.size < THRESHOLD) {
                                         resolve(blob);
-                                    } else if (quality > minQuality) {
-                                        // 继续降低质量
-                                        quality -= qualityStep;
-                                        tryCompress();
-                                    } else {
-                                        // 已降到最低质量，仍然超过 2MB
-                                        // 返回当前最小质量的结果
+                                        return;
+                                    }
+
+                                    // 原文件 >= 2MB，压缩到 1.8-1.95MB
+                                    if (blob.size >= TARGET_MIN && blob.size <= TARGET_MAX) {
+                                        // 完美命中目标范围
                                         resolve(blob);
+                                    } else if (blob.size > TARGET_MAX) {
+                                        // 仍然太大，继续降低质量
+                                        if (quality > 0.1) {
+                                            quality -= 0.02; // 更细致的步长
+                                            tryCompress(quality);
+                                        } else {
+                                            // 已降到最低，返回当前结果
+                                            resolve(blob);
+                                        }
+                                    } else if (blob.size < TARGET_MIN) {
+                                        // 太小了，提高质量
+                                        if (quality < 0.95) {
+                                            quality += 0.02; // 提高质量
+                                            tryCompress(quality);
+                                        } else {
+                                            // 已升到最高，返回当前结果
+                                            resolve(blob);
+                                        }
                                     }
                                 },
                                 'image/jpeg',
@@ -1063,7 +1080,8 @@
                             );
                         };
 
-                        tryCompress();
+                        // 初始质量从 85% 开始
+                        tryCompress(0.85);
                     };
                     img.onerror = () => reject(new Error('图片加载失败'));
                     img.src = e.target.result;
