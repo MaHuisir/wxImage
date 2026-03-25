@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>朋友圈神器 - 智能图片压缩</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #0066ff;
+            --primary-dark: #0052cc;
+            --primary-light: #e6f0ff;
+            --secondary: #00d4ff;
+            --success: #00c853;
+            --warning: #ff6b35;
+            --danger: #ff3b30;
+            --bg-dark: #0a0e27;
+            --bg-card: #1a1f3a;
+            --bg-hover: #252d4a;
+            --text-primary: #ffffff;
+            --text-secondary: #a0aec0;
+            --border: #2d3748;
+            --shadow: 0 20px 60px rgba(0, 102, 255, 0.1);
+            --shadow-hover: 0 30px 80px rgba(0, 102, 255, 0.15);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #0f1535 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* 背景装饰 */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(0, 102, 255, 0.05) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(0, 212, 255, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* 头部 */
+        .header {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: slideDown 0.6s ease-out;
+        }
+
+        .header h1 {
+            font-size: clamp(28px, 5vw, 48px);
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 12px;
+            letter-spacing: -1px;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        /* 主容器 */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+
+        /* 卡片样式 */
+        .card {
+            background: rgba(26, 31, 58, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        .card:hover {
+            border-color: var(--primary);
+            box-shadow: var(--shadow-hover);
+            transform: translateY(-4px);
+        }
+
+        /* 上传区域 */
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-zone::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(0, 102, 255, 0.1) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--primary);
+            background: rgba(0, 102, 255, 0.05);
+        }
+
+        .upload-zone:hover::before {
+            opacity: 1;
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--secondary);
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .upload-zone h3 {
+            font-size: 18px;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .upload-zone p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .upload-zone input[type="file"] {
+            display: none;
+        }
+
+        /* 设置面板 */
+        .settings-panel h3 {
+            font-size: 16px;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .setting-group {
+            margin-bottom: 24px;
+        }
+
+        .setting-group label {
+            display: block;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+
+        .ratio-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .ratio-btn {
+            padding: 12px 16px;
+            border: 2px solid var(--border);
+            background: transparent;
+            color: var(--text-secondary);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .ratio-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .ratio-btn.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+            box-shadow: 0 8px 24px rgba(0, 102, 255, 0.3);
+        }
+
+        .info-box {
+            background: rgba(0, 102, 255, 0.1);
+            border-left: 3px solid var(--primary);
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 12px;
+        }
+
+        /* 文件列表 */
+        .files-section {
+            margin-top: 40px;
+        }
+
+        .files-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .files-header h3 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .batch-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            box-shadow: 0 8px 24px rgba(0, 102, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-primary:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-danger {
+            background: rgba(255, 59, 48, 0.1);
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-success:hover {
+            opacity: 0.9;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* 文件列表 */
+        .files-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .file-item {
+            background: rgba(26, 31, 58, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 16px;
+            align-items: center;
+            transition: all 0.3s ease;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .file-item:hover {
+            border-color: var(--primary);
+            background: rgba(26, 31, 58, 0.95);
+        }
+
+        .file-item.processing {
+            opacity: 0.7;
+        }
+
+        .file-item.completed {
+            border-color: var(--success);
+        }
+
+        .file-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--primary);
+        }
+
+        .file-info {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            word-break: break-all;
+        }
+
+        .file-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            flex-wrap: wrap;
+        }
+
+        .file-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 2px;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-processing {
+            background: rgba(255, 107, 53, 0.2);
+            color: var(--warning);
+        }
+
+        .status-completed {
+            background: rgba(0, 200, 83, 0.2);
+            color: var(--success);
+        }
+
+        .status-error {
+            background: rgba(255, 59, 48, 0.2);
+            color: var(--danger);
+        }
+
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        /* 统计信息 */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(26, 31, 58, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* 动画 */
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(0, 102, 255, 0.3);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 640px) {
+            .container {
+                padding: 16px;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .file-item {
+                grid-template-columns: auto 1fr;
+                gap: 12px;
+            }
+
+            .file-actions {
+                grid-column: 2;
+                justify-self: end;
+            }
+
+            .files-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .batch-actions {
+                width: 100%;
+            }
+
+            .batch-actions .btn {
+                flex: 1;
+                justify-content: center;
+            }
+
+            .ratio-buttons {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.active {
+            display: flex;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            margin-bottom: 24px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        /* 提示信息 */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            color: var(--text-primary);
+            z-index: 2000;
+            animation: slideInRight 0.3s ease;
+            max-width: 300px;
+        }
+
+        .toast.success {
+            border-left: 3px solid var(--success);
+        }
+
+        .toast.error {
+            border-left: 3px solid var(--danger);
+        }
+
+        .toast.warning {
+            border-left: 3px solid var(--warning);
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .toast {
+                left: 20px;
+                right: 20px;
+                max-width: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <h1>✨ 朋友圈神器</h1>
+            <p>智能图片压缩 · 一键优化 · 完美分享</p>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="totalFiles">0</div>
+                <div class="stat-label">总文件数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalSize">0 MB</div>
+                <div class="stat-label">原始大小</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="compressedSize">0 MB</div>
+                <div class="stat-label">压缩后</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="compressionRate">0%</div>
+                <div class="stat-label">压缩率</div>
+            </div>
+        </div>
+
+        <!-- 主容器 -->
+        <div class="main-grid">
+            <!-- 上传区域 -->
+            <div class="card">
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">📸</div>
+                    <h3>选择或拖拽图片</h3>
+                    <p>支持 JPG、PNG、WebP 等格式</p>
+                    <p style="font-size: 12px; color: var(--text-secondary);">单个文件 ≤ 100MB</p>
+                </div>
+                <input type="file" id="fileInput" multiple accept="image/*">
+            </div>
+
+            <!-- 设置面板 -->
+            <div class="card">
+                <div class="settings-panel">
+                    <h3>⚙️ 压缩设置</h3>
+
+                    <div class="setting-group">
+                        <label>宽高比例</label>
+                        <div class="ratio-buttons">
+                            <button class="ratio-btn active" data-ratio="1:1">1:1 正方形</button>
+                            <button class="ratio-btn" data-ratio="4:3">4:3 标准</button>
+                        </div>
+                    </div>
+
+                    <div class="setting-group">
+                        <label>质量等级</label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                            <button class="ratio-btn" data-quality="60">低 (60%)</button>
+                            <button class="ratio-btn active" data-quality="75">中 (75%)</button>
+                            <button class="ratio-btn" data-quality="85">高 (85%)</button>
+                            <button class="ratio-btn" data-quality="95">超高 (95%)</button>
+                        </div>
+                    </div>
+
+                    <div class="info-box">
+                        <strong>📋 压缩规则：</strong><br>
+                        • 长边 ≤ 1080px<br>
+                        • 文件大小 ≤ 2MB<br>
+                        • 强制转换为 JPG<br>
+                        • 自动裁剪至选定比例
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文件列表 -->
+        <div class="files-section">
+            <div class="files-header">
+                <h3>📁 文件列表</h3>
+                <div class="batch-actions">
+                    <button class="btn btn-primary" id="compressAllBtn" disabled>
+                        <span>⚡ 全部压缩</span>
+                    </button>
+                    <button class="btn btn-success" id="downloadAllBtn" disabled>
+                        <span>⬇️ 全部下载</span>
+                    </button>
+                    <button class="btn btn-danger" id="clearAllBtn" disabled>
+                        <span>🗑️ 清空列表</span>
+                    </button>
+                </div>
+            </div>
+            <div class="files-list" id="filesList">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <p>还没有选择图片，上传开始吧！</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框 -->
+    <div class="modal" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-header" id="modalTitle">确认操作</div>
+            <div class="modal-body" id="modalBody">确定要执行此操作吗？</div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelBtn">取消</button>
+                <button class="btn btn-primary" id="confirmBtn">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 状态管理
+        const state = {
+            files: [],
+            settings: {
+                ratio: '1:1',
+                quality: 75
+            }
+        };
+
+        // DOM 元素
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+        const filesList = document.getElementById('filesList');
+        const compressAllBtn = document.getElementById('compressAllBtn');
+        const downloadAllBtn = document.getElementById('downloadAllBtn');
+        const clearAllBtn = document.getElementById('clearAllBtn');
+        const confirmModal = document.getElementById('confirmModal');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const confirmBtn = document.getElementById('confirmBtn');
+
+        // 初始化事件监听
+        function initEventListeners() {
+            // 上传区域
+            uploadZone.addEventListener('click', () => fileInput.click());
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.classList.add('dragover');
+            });
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.classList.remove('dragover');
+            });
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files);
+            });
+
+            // 文件输入
+            fileInput.addEventListener('change', (e) => {
+                handleFiles(e.target.files);
+            });
+
+            // 设置面板
+            document.querySelectorAll('[data-ratio]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('[data-ratio]').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    state.settings.ratio = e.target.dataset.ratio;
+                });
+            });
+
+            document.querySelectorAll('[data-quality]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('[data-quality]').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    state.settings.quality = parseInt(e.target.dataset.quality);
+                });
+            });
+
+            // 批量操作
+            compressAllBtn.addEventListener('click', () => compressAll());
+            downloadAllBtn.addEventListener('click', () => downloadAll());
+            clearAllBtn.addEventListener('click', () => showConfirm('清空列表', '确定要清空所有文件吗？', clearAll));
+
+            // 模态框
+            cancelBtn.addEventListener('click', closeModal);
+            confirmBtn.addEventListener('click', () => {
+                closeModal();
+                if (confirmBtn.dataset.action === 'clear') {
+                    clearAll();
+                }
+            });
+        }
+
+        // 处理文件
+        function handleFiles(files) {
+            const newFiles = Array.from(files).filter(file => {
+                if (!file.type.startsWith('image/')) {
+                    showToast('只支持图片文件', 'error');
+                    return false;
+                }
+                if (file.size > 100 * 1024 * 1024) {
+                    showToast(`${file.name} 超过 100MB 限制`, 'error');
+                    return false;
+                }
+                return true;
+            });
+
+            newFiles.forEach(file => {
+                const fileObj = {
+                    id: Date.now() + Math.random(),
+                    file: file,
+                    name: file.name,
+                    size: file.size,
+                    compressedSize: null,
+                    status: 'pending', // pending, processing, completed, error
+                    progress: 0,
+                    compressedBlob: null,
+                    selected: false
+                };
+                state.files.push(fileObj);
+            });
+
+            renderFilesList();
+            updateStats();
+            updateButtonStates();
+        }
+
+        // 渲染文件列表
+        function renderFilesList() {
+            if (state.files.length === 0) {
+                filesList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>还没有选择图片，上传开始吧！</p>
+                    </div>
+                `;
+                return;
+            }
+
+            filesList.innerHTML = state.files.map(fileObj => `
+                <div class="file-item ${fileObj.status === 'processing' ? 'processing' : ''} ${fileObj.status === 'completed' ? 'completed' : ''}">
+                    <input type="checkbox" class="file-checkbox" data-id="${fileObj.id}" ${fileObj.selected ? 'checked' : ''}>
+                    <div class="file-info">
+                        <div class="file-name">${fileObj.name}</div>
+                        <div class="file-meta">
+                            <span>📦 ${formatSize(fileObj.size)}</span>
+                            ${fileObj.compressedSize ? `<span>✅ ${formatSize(fileObj.compressedSize)}</span>` : ''}
+                            ${fileObj.status === 'processing' ? `<span class="status-badge status-processing"><span class="spinner"></span>处理中</span>` : ''}
+                            ${fileObj.status === 'completed' ? `<span class="status-badge status-completed">✓ 已完成</span>` : ''}
+                            ${fileObj.status === 'error' ? `<span class="status-badge status-error">✗ 失败</span>` : ''}
+                        </div>
+                        ${fileObj.status === 'processing' ? `<div class="progress-bar"><div class="progress-fill" style="width: ${fileObj.progress}%"></div></div>` : ''}
+                    </div>
+                    <div class="file-actions">
+                        ${fileObj.status === 'completed' ? `
+                            <button class="btn btn-success btn-sm" onclick="downloadFile('${fileObj.id}')">⬇️ 下载</button>
+                        ` : ''}
+                        ${fileObj.status === 'pending' ? `
+                            <button class="btn btn-primary btn-sm" onclick="compressFile('${fileObj.id}')">⚡ 压缩</button>
+                        ` : ''}
+                        <button class="btn btn-danger btn-sm" onclick="removeFile('${fileObj.id}')">🗑️</button>
+                    </div>
+                </div>
+            `).join('');
+
+            // 绑定复选框事件
+            document.querySelectorAll('.file-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', (e) => {
+                    const fileObj = state.files.find(f => f.id == e.target.dataset.id);
+                    if (fileObj) {
+                        fileObj.selected = e.target.checked;
+                        updateButtonStates();
+                    }
+                });
+            });
+        }
+
+        // 压缩单个文件
+        async function compressFile(fileId) {
+            const fileObj = state.files.find(f => f.id == fileId);
+            if (!fileObj) return;
+
+            fileObj.status = 'processing';
+            renderFilesList();
+
+            try {
+                const compressedBlob = await compressImage(fileObj.file);
+                fileObj.compressedBlob = compressedBlob;
+                fileObj.compressedSize = compressedBlob.size;
+                fileObj.status = 'completed';
+                showToast(`${fileObj.name} 压缩成功！`, 'success');
+            } catch (error) {
+                fileObj.status = 'error';
+                showToast(`${fileObj.name} 压缩失败: ${error.message}`, 'error');
+            }
+
+            renderFilesList();
+            updateStats();
+            updateButtonStates();
+        }
+
+        // 压缩图片
+        async function compressImage(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+
+                        // 计算新尺寸
+                        let { width, height } = img;
+                        const [ratioW, ratioH] = state.settings.ratio === '1:1' ? [1, 1] : [4, 3];
+                        const maxLongSide = 1080;
+
+                        // 缩放到长边 ≤ 1080px
+                        if (width > height) {
+                            if (width > maxLongSide) {
+                                height = Math.round(height * (maxLongSide / width));
+                                width = maxLongSide;
+                            }
+                        } else {
+                            if (height > maxLongSide) {
+                                width = Math.round(width * (maxLongSide / height));
+                                height = maxLongSide;
+                            }
+                        }
+
+                        // 裁剪到指定比例
+                        const targetRatio = ratioW / ratioH;
+                        const currentRatio = width / height;
+
+                        let cropWidth = width;
+                        let cropHeight = height;
+                        let cropX = 0;
+                        let cropY = 0;
+
+                        if (currentRatio > targetRatio) {
+                            cropWidth = Math.round(height * targetRatio);
+                            cropX = Math.round((width - cropWidth) / 2);
+                        } else {
+                            cropHeight = Math.round(width / targetRatio);
+                            cropY = Math.round((height - cropHeight) / 2);
+                        }
+
+                        canvas.width = cropWidth;
+                        canvas.height = cropHeight;
+
+                        ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+                        // 转换为 JPG 并压缩
+                        canvas.toBlob(
+                            (blob) => {
+                                if (blob.size > 2 * 1024 * 1024) {
+                                    // 如果仍然超过 2MB，进一步降低质量
+                                    let quality = state.settings.quality / 100;
+                                    const step = 0.05;
+                                    const tryCompress = () => {
+                                        canvas.toBlob(
+                                            (newBlob) => {
+                                                if (newBlob.size > 2 * 1024 * 1024 && quality > 0.3) {
+                                                    quality -= step;
+                                                    tryCompress();
+                                                } else {
+                                                    resolve(newBlob);
+                                                }
+                                            },
+                                            'image/jpeg',
+                                            quality
+                                        );
+                                    };
+                                    quality -= step;
+                                    tryCompress();
+                                } else {
+                                    resolve(blob);
+                                }
+                            },
+                            'image/jpeg',
+                            state.settings.quality / 100
+                        );
+                    };
+                    img.onerror = () => reject(new Error('图片加载失败'));
+                    img.src = e.target.result;
+                };
+                reader.onerror = () => reject(new Error('文件读取失败'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // 全部压缩
+        async function compressAll() {
+            const pendingFiles = state.files.filter(f => f.status === 'pending');
+            if (pendingFiles.length === 0) {
+                showToast('没有待压缩的文件', 'warning');
+                return;
+            }
+
+            for (const fileObj of pendingFiles) {
+                await compressFile(fileObj.id);
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+
+        // 下载单个文件
+        function downloadFile(fileId) {
+            const fileObj = state.files.find(f => f.id == fileId);
+            if (!fileObj || !fileObj.compressedBlob) return;
+
+            const url = URL.createObjectURL(fileObj.compressedBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileObj.name.replace(/\.[^.]+$/, '.jpg');
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // 全部下载
+        function downloadAll() {
+            const completedFiles = state.files.filter(f => f.status === 'completed');
+            if (completedFiles.length === 0) {
+                showToast('没有已完成的文件', 'warning');
+                return;
+            }
+
+            completedFiles.forEach((fileObj, index) => {
+                setTimeout(() => downloadFile(fileObj.id), index * 200);
+            });
+        }
+
+        // 删除文件
+        function removeFile(fileId) {
+            state.files = state.files.filter(f => f.id != fileId);
+            renderFilesList();
+            updateStats();
+            updateButtonStates();
+        }
+
+        // 清空列表
+        function clearAll() {
+            state.files = [];
+            renderFilesList();
+            updateStats();
+            updateButtonStates();
+        }
+
+        // 更新统计信息
+        function updateStats() {
+            const totalFiles = state.files.length;
+            const totalSize = state.files.reduce((sum, f) => sum + f.size, 0);
+            const compressedSize = state.files.reduce((sum, f) => sum + (f.compressedSize || 0), 0);
+            const compressionRate = totalSize > 0 ? Math.round((1 - compressedSize / totalSize) * 100) : 0;
+
+            document.getElementById('totalFiles').textContent = totalFiles;
+            document.getElementById('totalSize').textContent = formatSize(totalSize);
+            document.getElementById('compressedSize').textContent = formatSize(compressedSize);
+            document.getElementById('compressionRate').textContent = compressionRate + '%';
+        }
+
+        // 更新按钮状态
+        function updateButtonStates() {
+            const hasPending = state.files.some(f => f.status === 'pending');
+            const hasCompleted = state.files.some(f => f.status === 'completed');
+            const hasFiles = state.files.length > 0;
+
+            compressAllBtn.disabled = !hasPending;
+            downloadAllBtn.disabled = !hasCompleted;
+            clearAllBtn.disabled = !hasFiles;
+        }
+
+        // 显示确认框
+        function showConfirm(title, message, action) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').textContent = message;
+            confirmBtn.dataset.action = 'clear';
+            confirmModal.classList.add('active');
+        }
+
+        // 关闭模态框
+        function closeModal() {
+            confirmModal.classList.remove('active');
+        }
+
+        // 显示提示
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideInRight 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // 格式化文件大小
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // 初始化
+        initEventListeners();
+    </script>
+</body>
+</html>

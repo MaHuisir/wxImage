@@ -1,0 +1,19 @@
+{
+  "name": "moments-magic",
+  "version": "1.0.0",
+  "description": "朋友圈神器 - 智能图片压缩工具",
+  "main": "index.html",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/moments-magic"
+  },
+  "keywords": [
+    "image-compression",
+    "wechat-moments",
+    "photo-optimizer",
+    "batch-processing",
+    "web-app"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
