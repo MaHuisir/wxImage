@@ -762,20 +762,12 @@
                         </div>
                     </div>
 
-                    <div class="setting-group">
-                        <label>质量等级</label>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-                            <button class="ratio-btn" data-quality="60">低 (60%)</button>
-                            <button class="ratio-btn active" data-quality="75">中 (75%)</button>
-                            <button class="ratio-btn" data-quality="85">高 (85%)</button>
-                            <button class="ratio-btn" data-quality="95">超高 (95%)</button>
-                        </div>
-                    </div>
+
 
                     <div class="info-box">
                         <strong>📋 压缩规则：</strong><br>
                         • 长边 ≤ 1080px<br>
-                        • 文件大小 ≤ 2MB<br>
+                        • 文件大小 ≤ 2MB（自动智能压缩）<br>
                         • 强制转换为 JPG<br>
                         • 自动裁剪至选定比例
                     </div>
@@ -825,8 +817,7 @@
         const state = {
             files: [],
             settings: {
-                ratio: '1:1',
-                quality: 75
+                ratio: '1:1'
             }
         };
 
@@ -869,14 +860,6 @@
                     document.querySelectorAll('[data-ratio]').forEach(b => b.classList.remove('active'));
                     e.target.classList.add('active');
                     state.settings.ratio = e.target.dataset.ratio;
-                });
-            });
-
-            document.querySelectorAll('[data-quality]').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    document.querySelectorAll('[data-quality]').forEach(b => b.classList.remove('active'));
-                    e.target.classList.add('active');
-                    state.settings.quality = parseInt(e.target.dataset.quality);
                 });
             });
 
@@ -1053,36 +1036,34 @@
 
                         ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
 
-                        // 转换为 JPG 并压缩
-                        canvas.toBlob(
-                            (blob) => {
-                                if (blob.size > 2 * 1024 * 1024) {
-                                    // 如果仍然超过 2MB，进一步降低质量
-                                    let quality = state.settings.quality / 100;
-                                    const step = 0.05;
-                                    const tryCompress = () => {
-                                        canvas.toBlob(
-                                            (newBlob) => {
-                                                if (newBlob.size > 2 * 1024 * 1024 && quality > 0.3) {
-                                                    quality -= step;
-                                                    tryCompress();
-                                                } else {
-                                                    resolve(newBlob);
-                                                }
-                                            },
-                                            'image/jpeg',
-                                            quality
-                                        );
-                                    };
-                                    quality -= step;
-                                    tryCompress();
-                                } else {
-                                    resolve(blob);
-                                }
-                            },
-                            'image/jpeg',
-                            state.settings.quality / 100
-                        );
+                        // 智能压缩：从 90% 质量开始，逐步降低直到 ≤ 2MB
+                        const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+                        let quality = 0.9;
+                        const minQuality = 0.1;
+                        const qualityStep = 0.05;
+
+                        const tryCompress = () => {
+                            canvas.toBlob(
+                                (blob) => {
+                                    if (blob.size <= MAX_SIZE) {
+                                        // 成功：文件 ≤ 2MB
+                                        resolve(blob);
+                                    } else if (quality > minQuality) {
+                                        // 继续降低质量
+                                        quality -= qualityStep;
+                                        tryCompress();
+                                    } else {
+                                        // 已降到最低质量，仍然超过 2MB
+                                        // 返回当前最小质量的结果
+                                        resolve(blob);
+                                    }
+                                },
+                                'image/jpeg',
+                                quality
+                            );
+                        };
+
+                        tryCompress();
                     };
                     img.onerror = () => reject(new Error('图片加载失败'));
                     img.src = e.target.result;
