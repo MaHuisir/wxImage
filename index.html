@@ -1058,13 +1058,29 @@
                         }
 
                         // 原文件 >= 2MB，需要压缩到 1.5-1.95MB
-                        // 使用递归压缩，直到达到目标范围
-                        let attempts = 0;
-                        const maxAttempts = 30;
+                        console.log(`📊 目标范围: ${formatSize(TARGET_MIN)} - ${formatSize(TARGET_MAX)}`);
 
-                        const compressWithQuality = (quality) => {
-                            attempts++;
-                            console.log(`🔄 第 ${attempts} 次尝试，质量: ${(quality * 100).toFixed(1)}%`);
+                        // 从高质量开始，逐步降低
+                        const qualityLevels = [0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50, 0.45, 0.40, 0.35, 0.30, 0.25, 0.20];
+                        let currentIndex = 0;
+
+                        const tryNextQuality = () => {
+                            if (currentIndex >= qualityLevels.length) {
+                                // 已尝试所有质量，返回最后一个
+                                console.log(`⚠️ 已尝试所有质量等级，返回最后结果`);
+                                canvas.toBlob(
+                                    (blob) => {
+                                        console.log(`❌ 最终结果: ${formatSize(blob.size)}`);
+                                        resolve(blob);
+                                    },
+                                    'image/jpeg',
+                                    qualityLevels[qualityLevels.length - 1]
+                                );
+                                return;
+                            }
+
+                            const quality = qualityLevels[currentIndex];
+                            console.log(`🔄 尝试质量: ${(quality * 100).toFixed(0)}%`);
 
                             canvas.toBlob(
                                 (blob) => {
@@ -1078,26 +1094,28 @@
                                         return;
                                     }
 
-                                    // 如果超过最大尝试次数，返回当前结果
-                                    if (attempts >= maxAttempts) {
-                                        console.log(`⚠️ 达到最大尝试次数，返回当前结果: ${formatSize(blobSize)}`);
-                                        resolve(blob);
-                                        return;
-                                    }
-
-                                    // 根据大小调整质量
+                                    // 如果太大，继续降低质量
                                     if (blobSize > TARGET_MAX) {
-                                        // 太大，降低质量
-                                        console.log(`   太大了，降低质量`);
-                                        quality -= 0.03;
-                                        if (quality < 0.1) quality = 0.1;
-                                        compressWithQuality(quality);
-                                    } else if (blobSize < TARGET_MIN) {
-                                        // 太小，提高质量
-                                        console.log(`   太小了，提高质量`);
-                                        quality += 0.03;
-                                        if (quality > 0.95) quality = 0.95;
-                                        compressWithQuality(quality);
+                                        console.log(`   太大，继续降低质量`);
+                                        currentIndex++;
+                                        tryNextQuality();
+                                    } else {
+                                        // 太小了，说明上一个质量是最优的
+                                        if (currentIndex > 0) {
+                                            console.log(`   太小了，使用上一个质量`);
+                                            const prevQuality = qualityLevels[currentIndex - 1];
+                                            canvas.toBlob(
+                                                (prevBlob) => {
+                                                    console.log(`✅ 使用质量 ${(prevQuality * 100).toFixed(0)}%: ${formatSize(prevBlob.size)}`);
+                                                    resolve(prevBlob);
+                                                },
+                                                'image/jpeg',
+                                                prevQuality
+                                            );
+                                        } else {
+                                            console.log(`   太小了，但已是最高质量`);
+                                            resolve(blob);
+                                        }
                                     }
                                 },
                                 'image/jpeg',
@@ -1105,15 +1123,7 @@
                             );
                         };
 
-                        // 初始质量估算：根据文件大小
-                        const targetSize = 1.725 * 1024 * 1024; // 目标中点 1.725MB
-                        let initialQuality = (targetSize / file.size) * 0.85;
-                        initialQuality = Math.max(0.2, Math.min(0.85, initialQuality));
-
-                        console.log(`📊 目标范围: ${formatSize(TARGET_MIN)} - ${formatSize(TARGET_MAX)}`);
-                        console.log(`🎯 初始质量估算: ${(initialQuality * 100).toFixed(1)}%`);
-
-                        compressWithQuality(initialQuality);
+                        tryNextQuality();
                     };
                     img.onerror = () => reject(new Error('图片加载失败'));
                     img.src = e.target.result;
