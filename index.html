@@ -502,37 +502,40 @@
 
         .toast {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 16px 20px;
+            padding: 16px 24px;
             color: var(--text-primary);
             z-index: 2000;
-            animation: slideInRight 0.3s ease;
-            max-width: 300px;
+            animation: slideDown 0.3s ease;
+            max-width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
         }
 
         .toast.success {
-            border-left: 3px solid var(--success);
+            border-top: 3px solid var(--success);
         }
 
         .toast.error {
-            border-left: 3px solid var(--danger);
+            border-top: 3px solid var(--danger);
         }
 
         .toast.warning {
-            border-left: 3px solid var(--warning);
+            border-top: 3px solid var(--warning);
         }
 
-        @keyframes slideInRight {
+        @keyframes slideDown {
             from {
-                transform: translateX(400px);
+                transform: translateX(-50%) translateY(-100px);
                 opacity: 0;
             }
             to {
-                transform: translateX(0);
+                transform: translateX(-50%) translateY(0);
                 opacity: 1;
             }
         }
@@ -688,6 +691,38 @@
             compressAllBtn.addEventListener('click', () => compressAll());
             downloadAllBtn.addEventListener('click', () => downloadAll());
             clearAllBtn.addEventListener('click', () => clearAll());
+
+            // 文件列表事件委托
+            filesList.addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+
+                const fileItem = btn.closest('.file-item');
+                if (!fileItem) return;
+                
+                const checkbox = fileItem.querySelector('.file-checkbox');
+                if (!checkbox) return;
+                
+                const fileId = checkbox.dataset.id;
+                if (!fileId) return;
+
+                if (btn.classList.contains('btn-remove')) {
+                    // 删除
+                    e.preventDefault();
+                    e.stopPropagation();
+                    removeFile(fileId);
+                } else if (btn.classList.contains('btn-download')) {
+                    // 下载
+                    e.preventDefault();
+                    e.stopPropagation();
+                    downloadFile(fileId);
+                } else if (btn.classList.contains('btn-compress')) {
+                    // 压缩
+                    e.preventDefault();
+                    e.stopPropagation();
+                    compressFile(fileId);
+                }
+            });
         }
 
         function handleFiles(files) {
@@ -750,12 +785,12 @@
                     </div>
                     <div class="file-actions">
                         ${fileObj.status === 'completed' ? `
-                            <button class="btn btn-success btn-sm" onclick="downloadFile('${fileObj.id}')">⬇️ 下载</button>
+                            <button class="btn btn-success btn-sm btn-download">⬇️ 下载</button>
                         ` : ''}
                         ${fileObj.status === 'pending' ? `
-                            <button class="btn btn-primary btn-sm" onclick="compressFile('${fileObj.id}')">⚡ 压缩</button>
+                            <button class="btn btn-primary btn-sm btn-compress">⚡ 压缩</button>
                         ` : ''}
-                        <button class="btn btn-danger btn-sm" onclick="removeFile('${fileObj.id}')">🗑️</button>
+                        <button class="btn btn-danger btn-sm btn-remove">🗑️</button>
                     </div>
                 </div>
             `).join('');
